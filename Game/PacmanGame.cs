@@ -21,6 +21,13 @@ public sealed class PacmanGame
         (13, 15, "cyan", 300),
         (14, 15, "orange", 600)
     ];
+    private static readonly (int X, int Y)[][] GhostExitPaths =
+    [
+        [(13, 13), (13, 12), (13, 11)],
+        [(13, 14), (13, 13), (13, 12), (13, 11)],
+        [(13, 14), (13, 13), (13, 12), (13, 11)],
+        [(13, 15), (13, 14), (13, 13), (13, 12), (13, 11)]
+    ];
     private static readonly string[] MazeRows =
     [
         "############################", "#............##............#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#..........................#", "#.####.##.########.##.####.#", "#.####.##.########.##.####.#", "#......##....##....##......#", "######.#####.##.#####.######", "######.#####.##.#####.######", "######.##..........##.######", "######.##.###--###.##.######", "######.##.#      #.##.######", "          #      #          ", "######.##.#      #.##.######", "######.##.########.##.######", "######.##..........##.######", "######.#####.##.#####.######", "######.#####.##.#####.######", "#............##............#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#...##................##...#", "###.##.##.########.##.##.###", "###.##.##.########.##.##.###", "#......##....##....##......#", "#.##########.##.##########.#", "#.##########.##.##########.#", "#..........................#", "############################"
@@ -57,8 +64,12 @@ public sealed class PacmanGame
         grid = MazeRows.Select(row => row.Select(c => c == '#' ? 1 : c == '.' ? 2 : c == '-' ? 3 : 0).ToArray()).ToArray();
         grid[PacmanStart.Y][PacmanStart.X] = 0;
         dots = grid.Sum(row => row.Count(cell => cell == 2)); score = 0; lives = 3; dotsEatenThisLife = 0; State = state;
-        pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman");
-        ghosts = GhostStarts.Select(g => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind) { Released = g.ReleaseScore == 0 }).ToList();
+        pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman", []);
+        ghosts = GhostStarts.Select((g, i) => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind, GhostExitPaths[i])
+        {
+            Released = g.ReleaseScore == 0,
+            LeavingHouse = g.ReleaseScore == 0
+        }).ToList();
     }
 
     private void MovePacman()
@@ -76,7 +87,36 @@ public sealed class PacmanGame
     private void MoveGhost(Actor ghost)
     {
         if (!ghost.Released) return;
+        if (ghost.LeavingHouse)
+        {
+            MoveOutOfHouse(ghost);
+            return;
+        }
         if (Aligned(ghost)) { Snap(ghost); DecideGhost(ghost); if (!CanMove(ghost.X, ghost.Y, ghost.Direction, false)) return; }
+        Move(ghost);
+    }
+
+    private void MoveOutOfHouse(Actor ghost)
+    {
+        if (!Aligned(ghost)) { Move(ghost); return; }
+
+        Snap(ghost);
+        if (ghost.ExitPathIndex == ghost.ExitPath.Length)
+        {
+            ghost.LeavingHouse = false;
+            ghost.AiCycleStartedAt = DateTime.UtcNow;
+            return;
+        }
+
+        var target = ghost.ExitPath[ghost.ExitPathIndex];
+        if (ghost.X == target.X && ghost.Y == target.Y)
+        {
+            ghost.ExitPathIndex++;
+            MoveOutOfHouse(ghost);
+            return;
+        }
+
+        ghost.Direction = target.X < ghost.X ? "left" : target.X > ghost.X ? "right" : target.Y < ghost.Y ? "up" : "down";
         Move(ghost);
     }
 
@@ -85,7 +125,9 @@ public sealed class PacmanGame
         for (var i = 0; i < ghosts.Count; i++)
         {
             if (dotsEatenThisLife < GhostStarts[i].ReleaseScore) break;
+            if (ghosts[i].Released) continue;
             ghosts[i].Released = true;
+            ghosts[i].LeavingHouse = true;
         }
     }
 
@@ -113,7 +155,7 @@ public sealed class PacmanGame
     private void ResetPositions() { pacman.X = PacmanStart.X; pacman.Y = PacmanStart.Y; pacman.Direction = "left"; pacman.NextDirection = null; for (var i = 0; i < ghosts.Count; i++) { ghosts[i].X = GhostStarts[i].X; ghosts[i].Y = GhostStarts[i].Y; ghosts[i].Direction = "up"; } }
     private static bool Aligned(Actor actor) => Math.Abs(actor.X - Math.Round(actor.X)) < .001 && Math.Abs(actor.Y - Math.Round(actor.Y)) < .001;
     private static void Snap(Actor actor) { actor.X = Math.Round(actor.X); actor.Y = Math.Round(actor.Y); }
-    private sealed class Actor(double x, double y, string direction, double speed, string kind)
+    private sealed class Actor(double x, double y, string direction, double speed, string kind, (int X, int Y)[] exitPath)
     {
         public double X = x, Y = y;
         public string Direction = direction;
@@ -123,6 +165,8 @@ public sealed class PacmanGame
         public bool Released;
         public bool LeavingHouse;
         public DateTime AiCycleStartedAt = DateTime.UtcNow;
+        public (int X, int Y)[] ExitPath = exitPath;
+        public int ExitPathIndex;
     }
 }
 
