@@ -1,0 +1,59 @@
+@page "/"
+@using open_pacman.Game
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<PageTitle>Pac-Man MVP</PageTitle>
+
+<main id="game-wrap">
+    <canvas @ref="canvas" id="game" width="560" height="620"></canvas>
+    @if (game.State != "playing")
+    {
+        <section id="overlay" class="show">
+            <h1 class="@TitleClass">@Title</h1>
+            @if (game.State == "start")
+            {
+                <p>Flechas para moverte. Come todos los puntos.</p>
+            }
+            <button @onclick="StartGame">@ButtonLabel</button>
+        </section>
+    }
+</main>
+
+@code {
+    private readonly PacmanGame game = new();
+    private ElementReference canvas;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<Home>? reference;
+
+    private string Title => game.State switch { "won" => "GANASTE", "lost" => "PERDISTE", _ => "PAC-MAN" };
+    private string TitleClass => game.State == "won" ? "win" : game.State == "lost" ? "lose" : "";
+    private string ButtonLabel => game.State == "start" ? "Start" : "Reiniciar";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/pacman.js");
+        reference = DotNetObjectReference.Create(this);
+        await module.InvokeVoidAsync("start", canvas, reference);
+    }
+
+    private void StartGame() => game.Reset();
+
+    [JSInvokable]
+    public GameFrame Tick()
+    {
+        game.Update();
+        InvokeAsync(StateHasChanged);
+        return game.Frame;
+    }
+
+    [JSInvokable]
+    public void SetDirection(string direction) => game.SetDirection(direction);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null) await module.DisposeAsync();
+        reference?.Dispose();
+    }
+}
