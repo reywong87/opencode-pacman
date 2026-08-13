@@ -14,7 +14,13 @@ public sealed class PacmanGame
         ["left"] = "right", ["right"] = "left", ["up"] = "down", ["down"] = "up"
     };
     private static readonly (int X, int Y) PacmanStart = (13, 23);
-    private static readonly (int X, int Y, string Kind)[] GhostStarts = [(13, 14, "hunter"), (14, 14, "random")];
+    private static readonly (int X, int Y, string Kind, int ReleaseScore)[] GhostStarts =
+    [
+        (13, 14, "red", 0),
+        (14, 14, "pink", 100),
+        (13, 15, "cyan", 300),
+        (14, 15, "orange", 600)
+    ];
     private static readonly string[] MazeRows =
     [
         "############################", "#............##............#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#..........................#", "#.####.##.########.##.####.#", "#.####.##.########.##.####.#", "#......##....##....##......#", "######.#####.##.#####.######", "######.#####.##.#####.######", "######.##..........##.######", "######.##.###--###.##.######", "######.##.#      #.##.######", "          #      #          ", "######.##.#      #.##.######", "######.##.########.##.######", "######.##..........##.######", "######.#####.##.#####.######", "######.#####.##.#####.######", "#............##............#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#...##................##...#", "###.##.##.########.##.##.###", "###.##.##.########.##.##.###", "#......##....##....##......#", "#.##########.##.##########.#", "#.##########.##.##########.#", "#..........................#", "############################"
@@ -50,7 +56,7 @@ public sealed class PacmanGame
         grid = MazeRows.Select(row => row.Select(c => c == '#' ? 1 : c == '.' ? 2 : c == '-' ? 3 : 0).ToArray()).ToArray();
         grid[PacmanStart.Y][PacmanStart.X] = 0;
         dots = grid.Sum(row => row.Count(cell => cell == 2)); score = 0; lives = 3; State = state;
-        pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed);
+        pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman");
         ghosts = GhostStarts.Select(g => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind)).ToList();
     }
 
@@ -96,13 +102,16 @@ public sealed class PacmanGame
     private void ResetPositions() { pacman.X = PacmanStart.X; pacman.Y = PacmanStart.Y; pacman.Direction = "left"; pacman.NextDirection = null; for (var i = 0; i < ghosts.Count; i++) { ghosts[i].X = GhostStarts[i].X; ghosts[i].Y = GhostStarts[i].Y; ghosts[i].Direction = "up"; } }
     private static bool Aligned(Actor actor) => Math.Abs(actor.X - Math.Round(actor.X)) < .001 && Math.Abs(actor.Y - Math.Round(actor.Y)) < .001;
     private static void Snap(Actor actor) { actor.X = Math.Round(actor.X); actor.Y = Math.Round(actor.Y); }
-    private sealed class Actor(double x, double y, string direction, double speed, string kind = "")
+    private sealed class Actor(double x, double y, string direction, double speed, string kind)
     {
         public double X = x, Y = y;
         public string Direction = direction;
         public string? NextDirection;
         public double Speed = speed;
         public string Kind = kind;
+        public bool Released;
+        public bool LeavingHouse;
+        public DateTime AiCycleStartedAt = DateTime.UtcNow;
     }
 }
 
