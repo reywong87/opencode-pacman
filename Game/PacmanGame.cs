@@ -29,7 +29,7 @@ public sealed class PacmanGame
     private int[][] grid = [];
     private Actor pacman = null!;
     private List<Actor> ghosts = [];
-    private int score, lives, dots;
+    private int score, lives, dots, dotsEatenThisLife;
     public string State { get; private set; } = "start";
 
     public PacmanGame() => Reset("start");
@@ -42,6 +42,7 @@ public sealed class PacmanGame
     {
         if (State != "playing") return;
         MovePacman();
+        ReleaseGhosts();
         foreach (var ghost in ghosts) MoveGhost(ghost);
         if (ghosts.Any(g => Math.Abs(g.X - pacman.X) < .5 && Math.Abs(g.Y - pacman.Y) < .5))
         {
@@ -55,9 +56,9 @@ public sealed class PacmanGame
     {
         grid = MazeRows.Select(row => row.Select(c => c == '#' ? 1 : c == '.' ? 2 : c == '-' ? 3 : 0).ToArray()).ToArray();
         grid[PacmanStart.Y][PacmanStart.X] = 0;
-        dots = grid.Sum(row => row.Count(cell => cell == 2)); score = 0; lives = 3; State = state;
+        dots = grid.Sum(row => row.Count(cell => cell == 2)); score = 0; lives = 3; dotsEatenThisLife = 0; State = state;
         pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman");
-        ghosts = GhostStarts.Select(g => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind)).ToList();
+        ghosts = GhostStarts.Select(g => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind) { Released = g.ReleaseScore == 0 }).ToList();
     }
 
     private void MovePacman()
@@ -66,7 +67,7 @@ public sealed class PacmanGame
         {
             Snap(pacman);
             if (pacman.NextDirection is { } next && CanMove(pacman.X, pacman.Y, next, true)) { pacman.Direction = next; pacman.NextDirection = null; }
-            if (grid[(int)pacman.Y][(int)pacman.X] == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; dots--; }
+            if (grid[(int)pacman.Y][(int)pacman.X] == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; dots--; dotsEatenThisLife += 10; }
             if (!CanMove(pacman.X, pacman.Y, pacman.Direction, true)) return;
         }
         Move(pacman);
@@ -74,8 +75,18 @@ public sealed class PacmanGame
 
     private void MoveGhost(Actor ghost)
     {
+        if (!ghost.Released) return;
         if (Aligned(ghost)) { Snap(ghost); DecideGhost(ghost); if (!CanMove(ghost.X, ghost.Y, ghost.Direction, false)) return; }
         Move(ghost);
+    }
+
+    private void ReleaseGhosts()
+    {
+        for (var i = 0; i < ghosts.Count; i++)
+        {
+            if (dotsEatenThisLife < GhostStarts[i].ReleaseScore) break;
+            ghosts[i].Released = true;
+        }
     }
 
     private void DecideGhost(Actor ghost)
