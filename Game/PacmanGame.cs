@@ -128,6 +128,7 @@ public sealed class PacmanGame
             if (ghosts[i].Released) continue;
             ghosts[i].Released = true;
             ghosts[i].LeavingHouse = true;
+            ghosts[i].AiCycleStartedAt = DateTime.UtcNow;
         }
     }
 
@@ -135,9 +136,25 @@ public sealed class PacmanGame
     {
         var choices = Directions.Keys.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
         if (choices.Length == 0) choices = [Opposite[ghost.Direction]];
-        ghost.Direction = ghost.Kind == "hunter"
-            ? choices.MinBy(d => Math.Abs(ghost.X + Directions[d].X - Math.Round(pacman.X)) + Math.Abs(ghost.Y + Directions[d].Y - Math.Round(pacman.Y)))!
-            : choices[Random.Shared.Next(choices.Length)];
+        var target = GhostTarget(ghost);
+        ghost.Direction = choices.MinBy(d => Math.Abs(ghost.X + Directions[d].X - target.X) + Math.Abs(ghost.Y + Directions[d].Y - target.Y))!;
+    }
+
+    private (double X, double Y) GhostTarget(Actor ghost) => ghost.Kind switch
+    {
+        "red" => (Math.Round(pacman.X), Math.Round(pacman.Y)),
+        "pink" => AheadOfPacman(4),
+        "cyan" when (DateTime.UtcNow - ghost.AiCycleStartedAt).TotalSeconds % 14 < 7 => (Math.Round(pacman.X), Math.Round(pacman.Y)),
+        "cyan" => (grid[0].Length - 1, grid.Length - 1),
+        "orange" when Math.Abs(ghost.X - pacman.X) + Math.Abs(ghost.Y - pacman.Y) >= 8 => (Math.Round(pacman.X), Math.Round(pacman.Y)),
+        "orange" => (0, grid.Length - 1),
+        _ => (ghost.X, ghost.Y)
+    };
+
+    private (double X, double Y) AheadOfPacman(int tiles)
+    {
+        var direction = Directions[pacman.Direction];
+        return (Math.Round(pacman.X) + direction.X * tiles, Math.Round(pacman.Y) + direction.Y * tiles);
     }
 
     private bool CanMove(double x, double y, string direction, bool isPacman)
