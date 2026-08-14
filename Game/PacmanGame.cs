@@ -13,6 +13,10 @@ public sealed class PacmanGame
     {
         ["left"] = "right", ["right"] = "left", ["up"] = "down", ["down"] = "up"
     };
+    private static readonly Dictionary<string, (int X, int Y)> GhostCorners = new()
+    {
+        ["red"] = (27, 0), ["pink"] = (0, 0), ["cyan"] = (27, 30), ["orange"] = (0, 30)
+    };
     private static readonly (int X, int Y) PacmanStart = (13, 23);
     private static readonly (int X, int Y, string Kind, int ReleaseScore)[] GhostStarts =
     [
@@ -145,9 +149,9 @@ public sealed class PacmanGame
         "red" => (Math.Round(pacman.X), Math.Round(pacman.Y)),
         "pink" => AheadOfPacman(4),
         "cyan" when (DateTime.UtcNow - ghost.AiCycleStartedAt).TotalSeconds % 14 < 7 => (Math.Round(pacman.X), Math.Round(pacman.Y)),
-        "cyan" => (grid[0].Length - 1, grid.Length - 1),
+        "cyan" => GhostCorners["cyan"],
         "orange" when Math.Abs(ghost.X - pacman.X) + Math.Abs(ghost.Y - pacman.Y) >= 8 => (Math.Round(pacman.X), Math.Round(pacman.Y)),
-        "orange" => (0, grid.Length - 1),
+        "orange" => GhostCorners["orange"],
         _ => (ghost.X, ghost.Y)
     };
 
