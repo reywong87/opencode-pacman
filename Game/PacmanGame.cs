@@ -55,7 +55,7 @@ public sealed class PacmanGame
         MovePacman();
         ReleaseGhosts();
         foreach (var ghost in ghosts) MoveGhost(ghost);
-        if (ghosts.Any(g => Math.Abs(g.X - pacman.X) < .5 && Math.Abs(g.Y - pacman.Y) < .5))
+        if (ghosts.Any(g => g.Released && !g.LeavingHouse && Math.Abs(g.X - pacman.X) < .5 && Math.Abs(g.Y - pacman.Y) < .5))
         {
             if (--lives == 0) { State = "lost"; return; }
             ResetPositions();
@@ -108,7 +108,6 @@ public sealed class PacmanGame
         if (ghost.ExitPathIndex == ghost.ExitPath.Length)
         {
             ghost.LeavingHouse = false;
-            ghost.AiCycleStartedAt = DateTime.UtcNow;
             return;
         }
 
@@ -173,7 +172,27 @@ public sealed class PacmanGame
         var d = Directions[actor.Direction]; actor.X += d.X * actor.Speed; actor.Y += d.Y * actor.Speed;
         if (Math.Round(actor.Y) == TunnelRow) { if (actor.X < 0) actor.X += grid[0].Length; else if (actor.X >= grid[0].Length) actor.X -= grid[0].Length; }
     }
-    private void ResetPositions() { pacman.X = PacmanStart.X; pacman.Y = PacmanStart.Y; pacman.Direction = "left"; pacman.NextDirection = null; for (var i = 0; i < ghosts.Count; i++) { ghosts[i].X = GhostStarts[i].X; ghosts[i].Y = GhostStarts[i].Y; ghosts[i].Direction = "up"; } }
+    private void ResetPositions()
+    {
+        pacman.X = PacmanStart.X;
+        pacman.Y = PacmanStart.Y;
+        pacman.Direction = "left";
+        pacman.NextDirection = null;
+        dotsEatenThisLife = 0;
+
+        for (var i = 0; i < ghosts.Count; i++)
+        {
+            var ghost = ghosts[i];
+            var start = GhostStarts[i];
+            ghost.X = start.X;
+            ghost.Y = start.Y;
+            ghost.Direction = "up";
+            ghost.Released = start.ReleaseScore == 0;
+            ghost.LeavingHouse = ghost.Released;
+            ghost.ExitPathIndex = 0;
+            ghost.AiCycleStartedAt = DateTime.UtcNow;
+        }
+    }
     private static bool Aligned(Actor actor) => Math.Abs(actor.X - Math.Round(actor.X)) < .001 && Math.Abs(actor.Y - Math.Round(actor.Y)) < .001;
     private static void Snap(Actor actor) { actor.X = Math.Round(actor.X); actor.Y = Math.Round(actor.Y); }
     private sealed class Actor(double x, double y, string direction, double speed, string kind, (int X, int Y)[] exitPath)
