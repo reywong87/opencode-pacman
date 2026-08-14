@@ -138,10 +138,29 @@ public sealed class PacmanGame
 
     private void DecideGhost(Actor ghost)
     {
-        var choices = Directions.Keys.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
+        var choices = GhostDecisionDirections.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
         if (choices.Length == 0) choices = [Opposite[ghost.Direction]];
-        var target = GhostTarget(ghost);
-        ghost.Direction = choices.MinBy(d => Math.Abs(ghost.X + Directions[d].X - target.X) + Math.Abs(ghost.Y + Directions[d].Y - target.Y))!;
+        var target = NormalizeGhostTarget(GhostTarget(ghost));
+        var direction = choices[0];
+        var distance = int.MaxValue;
+
+        foreach (var choice in choices)
+        {
+            var delta = Directions[choice];
+            var x = (int)ghost.X + delta.X;
+            var y = (int)ghost.Y + delta.Y;
+            if (y == TunnelRow && x < 0) x = grid[0].Length - 1;
+            else if (y == TunnelRow && x >= grid[0].Length) x = 0;
+
+            var candidateDistance = ShortestGhostPathDistance((x, y), target);
+            if (candidateDistance < distance)
+            {
+                direction = choice;
+                distance = candidateDistance;
+            }
+        }
+
+        ghost.Direction = direction;
     }
 
     private (double X, double Y) GhostTarget(Actor ghost) => ghost.Kind switch
