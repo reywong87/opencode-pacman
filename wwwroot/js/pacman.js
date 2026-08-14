@@ -24,7 +24,7 @@ function draw(context, game, frame) {
   context.fillStyle = "#000"; context.fillRect(0, 0, width * tile, grid.length * tile);
   drawWalls(context, grid); drawDoor(context, grid); drawDots(context, grid);
   drawPacman(context, game.pacman, frame);
-  game.ghosts.forEach((ghost, index) => drawGhost(context, ghost, ["#f00", "#0ff", "#ffb8ff", "#ffb852"][index]));
+  game.ghosts.forEach((ghost, index) => drawGhost(context, ghost, ["#f00", "#ffb8ff", "#0ff", "#ffb852"][index]));
   context.fillStyle = "#fff"; context.font = '14px "Courier New", monospace'; context.textBaseline = "top";
   context.textAlign = "left"; context.fillText(`SCORE ${game.score}`, 8, 4); context.textAlign = "right"; context.fillText(`VIDAS ${game.lives}`, width * tile - 8, 4);
 }
