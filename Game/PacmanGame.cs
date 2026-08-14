@@ -45,7 +45,7 @@ public sealed class PacmanGame
     private int[][] grid = [];
     private Actor pacman = null!;
     private List<Actor> ghosts = [];
-    private int score, lives, dots, dotsEatenThisLife;
+    private int score, lives, collectiblesRemaining, dotsEatenThisLife;
     public string State { get; private set; } = "start";
 
     public PacmanGame() => Reset("start");
@@ -65,7 +65,7 @@ public sealed class PacmanGame
             if (--lives == 0) { State = "lost"; return; }
             ResetPositions();
         }
-        if (dots == 0) State = "won";
+        if (collectiblesRemaining == 0) State = "won";
     }
 
     private void Reset(string state)
@@ -73,7 +73,7 @@ public sealed class PacmanGame
         grid = MazeRows.Select(row => row.Select(c => c == '#' ? 1 : c == '.' ? 2 : c == '-' ? 3 : 0).ToArray()).ToArray();
         foreach (var pellet in PowerPelletPositions) grid[pellet.Y][pellet.X] = 4;
         grid[PacmanStart.Y][PacmanStart.X] = 0;
-        dots = grid.Sum(row => row.Count(cell => cell == 2)); score = 0; lives = 3; dotsEatenThisLife = 0; State = state;
+        collectiblesRemaining = grid.Sum(row => row.Count(cell => cell is 2 or 4)); score = 0; lives = 3; dotsEatenThisLife = 0; State = state;
         pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman", []);
         ghosts = GhostStarts.Select((g, i) => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind, GhostExitPaths[i])
         {
@@ -88,7 +88,7 @@ public sealed class PacmanGame
         {
             Snap(pacman);
             if (pacman.NextDirection is { } next && CanMove(pacman.X, pacman.Y, next, true)) { pacman.Direction = next; pacman.NextDirection = null; }
-            if (grid[(int)pacman.Y][(int)pacman.X] == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; dots--; dotsEatenThisLife += 10; }
+            if (grid[(int)pacman.Y][(int)pacman.X] == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; collectiblesRemaining--; dotsEatenThisLife += 10; }
             if (!CanMove(pacman.X, pacman.Y, pacman.Direction, true)) return;
         }
         Move(pacman);
