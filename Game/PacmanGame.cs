@@ -13,6 +13,7 @@ public sealed class PacmanGame
     {
         ["left"] = "right", ["right"] = "left", ["up"] = "down", ["down"] = "up"
     };
+    private static readonly string[] GhostDecisionDirections = ["up", "left", "down", "right"];
     private static readonly Dictionary<string, (int X, int Y)> GhostCorners = new()
     {
         ["red"] = (27, 0), ["pink"] = (0, 0), ["cyan"] = (27, 30), ["orange"] = (0, 30)
@@ -137,10 +138,29 @@ public sealed class PacmanGame
 
     private void DecideGhost(Actor ghost)
     {
-        var choices = Directions.Keys.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
+        var choices = GhostDecisionDirections.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
         if (choices.Length == 0) choices = [Opposite[ghost.Direction]];
-        var target = GhostTarget(ghost);
-        ghost.Direction = choices.MinBy(d => Math.Abs(ghost.X + Directions[d].X - target.X) + Math.Abs(ghost.Y + Directions[d].Y - target.Y))!;
+        var target = NormalizeGhostTarget(GhostTarget(ghost));
+        var direction = choices[0];
+        var distance = int.MaxValue;
+
+        foreach (var choice in choices)
+        {
+            var delta = Directions[choice];
+            var x = (int)ghost.X + delta.X;
+            var y = (int)ghost.Y + delta.Y;
+            if (y == TunnelRow && x < 0) x = grid[0].Length - 1;
+            else if (y == TunnelRow && x >= grid[0].Length) x = 0;
+
+            var candidateDistance = ShortestGhostPathDistance((x, y), target);
+            if (candidateDistance < distance)
+            {
+                direction = choice;
+                distance = candidateDistance;
+            }
+        }
+
+        ghost.Direction = direction;
     }
 
     private (double X, double Y) GhostTarget(Actor ghost) => ghost.Kind switch
@@ -159,6 +179,57 @@ public sealed class PacmanGame
         var direction = Directions[pacman.Direction];
         return (Math.Round(pacman.X) + direction.X * tiles, Math.Round(pacman.Y) + direction.Y * tiles);
     }
+
+    private (int X, int Y) NormalizeGhostTarget((double X, double Y) target)
+    {
+        var x = Math.Clamp((int)Math.Round(target.X), 0, grid[0].Length - 1);
+        var y = Math.Clamp((int)Math.Round(target.Y), 0, grid.Length - 1);
+        if (IsGhostTraversable(x, y)) return (x, y);
+
+        return Enumerable.Range(0, grid.Length)
+            .SelectMany(candidateY => Enumerable.Range(0, grid[0].Length).Select(candidateX => (X: candidateX, Y: candidateY)))
+            .Where(tile => IsGhostTraversable(tile.X, tile.Y))
+            .OrderBy(tile => Math.Abs(tile.X - x) + Math.Abs(tile.Y - y))
+            .ThenBy(tile => tile.Y)
+            .ThenBy(tile => tile.X)
+            .First();
+    }
+
+    private IEnumerable<(int X, int Y)> GhostNeighbors((int X, int Y) tile)
+    {
+        foreach (var direction in GhostDecisionDirections)
+        {
+            var delta = Directions[direction];
+            var x = tile.X + delta.X;
+            var y = tile.Y + delta.Y;
+            if (y == TunnelRow && x < 0) x = grid[0].Length - 1;
+            else if (y == TunnelRow && x >= grid[0].Length) x = 0;
+            if (IsGhostTraversable(x, y)) yield return (x, y);
+        }
+    }
+
+    private int ShortestGhostPathDistance((int X, int Y) start, (int X, int Y) target)
+    {
+        var queue = new Queue<((int X, int Y) Tile, int Distance)>();
+        var visited = new HashSet<(int X, int Y)> { start };
+        queue.Enqueue((start, 0));
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (current.Tile == target) return current.Distance;
+
+            foreach (var neighbor in GhostNeighbors(current.Tile))
+            {
+                if (visited.Add(neighbor)) queue.Enqueue((neighbor, current.Distance + 1));
+            }
+        }
+
+        return int.MaxValue;
+    }
+
+    private bool IsGhostTraversable(int x, int y) =>
+        y >= 0 && y < grid.Length && x >= 0 && x < grid[0].Length && grid[y][x] != 1;
 
     private bool CanMove(double x, double y, string direction, bool isPacman)
     {
