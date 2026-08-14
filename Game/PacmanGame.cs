@@ -189,6 +189,26 @@ public sealed class PacmanGame
         }
     }
 
+    private int ShortestGhostPathDistance((int X, int Y) start, (int X, int Y) target)
+    {
+        var queue = new Queue<((int X, int Y) Tile, int Distance)>();
+        var visited = new HashSet<(int X, int Y)> { start };
+        queue.Enqueue((start, 0));
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (current.Tile == target) return current.Distance;
+
+            foreach (var neighbor in GhostNeighbors(current.Tile))
+            {
+                if (visited.Add(neighbor)) queue.Enqueue((neighbor, current.Distance + 1));
+            }
+        }
+
+        return int.MaxValue;
+    }
+
     private bool IsGhostTraversable(int x, int y) =>
         y >= 0 && y < grid.Length && x >= 0 && x < grid[0].Length && grid[y][x] != 1;
 
