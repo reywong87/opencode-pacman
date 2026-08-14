@@ -1,6 +1,6 @@
 # SPEC 02 — Rutas mínimas para fantasmas
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01
 > **Date:** 2026-08-14
 > **Objective:** Corregir la navegación de los cuatro fantasmas para que elijan rutas mínimas hacia sus objetivos y usen los túneles laterales solo cuando acorten el recorrido.

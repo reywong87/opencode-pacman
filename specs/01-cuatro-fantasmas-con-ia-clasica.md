@@ -1,6 +1,6 @@
 # SPEC 01 — Cuatro fantasmas con IA clásica
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** None
 > **Date:** 2026-08-13
 > **Objective:** Incorporar cuatro fantasmas letales con salida por puntos y comportamientos clásicos diferenciados.
