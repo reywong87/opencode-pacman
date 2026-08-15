@@ -4,6 +4,8 @@ public sealed class PacmanGame
 {
     private const double PacmanSpeed = .125;
     private const double GhostSpeed = .1;
+    private const int PowerPelletScore = 50;
+    private const double FrightenedDurationSeconds = 6;
     private const int TunnelRow = 14;
     private static readonly Dictionary<string, (int X, int Y)> Directions = new()
     {
@@ -45,7 +47,8 @@ public sealed class PacmanGame
     private int[][] grid = [];
     private Actor pacman = null!;
     private List<Actor> ghosts = [];
-    private int score, lives, collectiblesRemaining, dotsEatenThisLife;
+    private int score, lives, collectiblesRemaining, dotsEatenThisLife, frightenedGhostsEaten;
+    private DateTime? frightenedUntil;
     public string State { get; private set; } = "start";
 
     public PacmanGame() => Reset("start");
@@ -73,7 +76,7 @@ public sealed class PacmanGame
         grid = MazeRows.Select(row => row.Select(c => c == '#' ? 1 : c == '.' ? 2 : c == '-' ? 3 : 0).ToArray()).ToArray();
         foreach (var pellet in PowerPelletPositions) grid[pellet.Y][pellet.X] = 4;
         grid[PacmanStart.Y][PacmanStart.X] = 0;
-        collectiblesRemaining = grid.Sum(row => row.Count(cell => cell is 2 or 4)); score = 0; lives = 3; dotsEatenThisLife = 0; State = state;
+        collectiblesRemaining = grid.Sum(row => row.Count(cell => cell is 2 or 4)); score = 0; lives = 3; dotsEatenThisLife = 0; frightenedGhostsEaten = 0; frightenedUntil = null; State = state;
         pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman", []);
         ghosts = GhostStarts.Select((g, i) => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind, GhostExitPaths[i])
         {
@@ -88,7 +91,17 @@ public sealed class PacmanGame
         {
             Snap(pacman);
             if (pacman.NextDirection is { } next && CanMove(pacman.X, pacman.Y, next, true)) { pacman.Direction = next; pacman.NextDirection = null; }
-            if (grid[(int)pacman.Y][(int)pacman.X] == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; collectiblesRemaining--; dotsEatenThisLife += 10; }
+            var cell = grid[(int)pacman.Y][(int)pacman.X];
+            if (cell == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; collectiblesRemaining--; dotsEatenThisLife += 10; }
+            else if (cell == 4)
+            {
+                grid[(int)pacman.Y][(int)pacman.X] = 0;
+                score += PowerPelletScore;
+                collectiblesRemaining--;
+                dotsEatenThisLife += PowerPelletScore;
+                frightenedGhostsEaten = 0;
+                frightenedUntil = DateTime.UtcNow.AddSeconds(FrightenedDurationSeconds);
+            }
             if (!CanMove(pacman.X, pacman.Y, pacman.Direction, true)) return;
         }
         Move(pacman);
