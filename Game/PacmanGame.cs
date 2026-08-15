@@ -4,6 +4,8 @@ public sealed class PacmanGame
 {
     private const double PacmanSpeed = .125;
     private const double GhostSpeed = .1;
+    private const int PowerPelletScore = 50;
+    private const double FrightenedDurationSeconds = 6;
     private const int TunnelRow = 14;
     private static readonly Dictionary<string, (int X, int Y)> Directions = new()
     {
@@ -33,6 +35,10 @@ public sealed class PacmanGame
         [(13, 14), (13, 13), (13, 12), (13, 11)],
         [(13, 15), (13, 14), (13, 13), (13, 12), (13, 11)]
     ];
+    private static readonly (int X, int Y)[] PowerPelletPositions =
+    [
+        (1, 3), (26, 3), (1, 23), (26, 23)
+    ];
     private static readonly string[] MazeRows =
     [
         "############################", "#............##............#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#..........................#", "#.####.##.########.##.####.#", "#.####.##.########.##.####.#", "#......##....##....##......#", "######.#####.##.#####.######", "######.#####.##.#####.######", "######.##..........##.######", "######.##.###--###.##.######", "######.##.#      #.##.######", "          #      #          ", "######.##.#      #.##.######", "######.##.########.##.######", "######.##..........##.######", "######.#####.##.#####.######", "######.#####.##.#####.######", "#............##............#", "#.####.#####.##.#####.####.#", "#.####.#####.##.#####.####.#", "#...##................##...#", "###.##.##.########.##.##.###", "###.##.##.########.##.##.###", "#......##....##....##......#", "#.##########.##.##########.#", "#.##########.##.##########.#", "#..........................#", "############################"
@@ -41,11 +47,12 @@ public sealed class PacmanGame
     private int[][] grid = [];
     private Actor pacman = null!;
     private List<Actor> ghosts = [];
-    private int score, lives, dots, dotsEatenThisLife;
+    private int score, lives, collectiblesRemaining, dotsEatenThisLife, frightenedGhostsEaten;
+    private DateTime? frightenedUntil;
     public string State { get; private set; } = "start";
 
     public PacmanGame() => Reset("start");
-    public GameFrame Frame => new(grid, score, lives, State, new(pacman.X, pacman.Y, pacman.Direction), ghosts.Select(g => new ActorFrame(g.X, g.Y, g.Direction)).ToArray());
+    public GameFrame Frame => new(grid, score, lives, State, new(pacman.X, pacman.Y, pacman.Direction, false, false), ghosts.Select(g => new ActorFrame(g.X, g.Y, g.Direction, IsFrightened() && !g.ReturningHome, g.ReturningHome)).ToArray());
 
     public void Reset() => Reset("playing");
     public void SetDirection(string direction) { if (State == "playing" && Directions.ContainsKey(direction)) pacman.NextDirection = direction; }
@@ -56,21 +63,27 @@ public sealed class PacmanGame
         MovePacman();
         ReleaseGhosts();
         foreach (var ghost in ghosts) MoveGhost(ghost);
-        if (ghosts.Any(g => g.Released && !g.LeavingHouse && Math.Abs(g.X - pacman.X) < .5 && Math.Abs(g.Y - pacman.Y) < .5))
+        var collidedGhost = ghosts.FirstOrDefault(g => g.Released && !g.LeavingHouse && !g.ReturningHome && Math.Abs(g.X - pacman.X) < .5 && Math.Abs(g.Y - pacman.Y) < .5);
+        if (collidedGhost is not null)
         {
-            if (--lives == 0) { State = "lost"; return; }
-            ResetPositions();
+            if (IsFrightened()) EatGhost(collidedGhost);
+            else
+            {
+                if (--lives == 0) { State = "lost"; return; }
+                ResetPositions();
+            }
         }
-        if (dots == 0) State = "won";
+        if (collectiblesRemaining == 0) State = "won";
     }
 
     private void Reset(string state)
     {
         grid = MazeRows.Select(row => row.Select(c => c == '#' ? 1 : c == '.' ? 2 : c == '-' ? 3 : 0).ToArray()).ToArray();
+        foreach (var pellet in PowerPelletPositions) grid[pellet.Y][pellet.X] = 4;
         grid[PacmanStart.Y][PacmanStart.X] = 0;
-        dots = grid.Sum(row => row.Count(cell => cell == 2)); score = 0; lives = 3; dotsEatenThisLife = 0; State = state;
-        pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman", []);
-        ghosts = GhostStarts.Select((g, i) => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind, GhostExitPaths[i])
+        collectiblesRemaining = grid.Sum(row => row.Count(cell => cell is 2 or 4)); score = 0; lives = 3; dotsEatenThisLife = 0; frightenedGhostsEaten = 0; frightenedUntil = null; State = state;
+        pacman = new(PacmanStart.X, PacmanStart.Y, "left", PacmanSpeed, "pacman", [], (PacmanStart.X, PacmanStart.Y));
+        ghosts = GhostStarts.Select((g, i) => new Actor(g.X, g.Y, "up", GhostSpeed, g.Kind, GhostExitPaths[i], (g.X, g.Y))
         {
             Released = g.ReleaseScore == 0,
             LeavingHouse = g.ReleaseScore == 0
@@ -83,7 +96,18 @@ public sealed class PacmanGame
         {
             Snap(pacman);
             if (pacman.NextDirection is { } next && CanMove(pacman.X, pacman.Y, next, true)) { pacman.Direction = next; pacman.NextDirection = null; }
-            if (grid[(int)pacman.Y][(int)pacman.X] == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; dots--; dotsEatenThisLife += 10; }
+            var cell = grid[(int)pacman.Y][(int)pacman.X];
+            if (cell == 2) { grid[(int)pacman.Y][(int)pacman.X] = 0; score += 10; collectiblesRemaining--; dotsEatenThisLife += 10; }
+            else if (cell == 4)
+            {
+                grid[(int)pacman.Y][(int)pacman.X] = 0;
+                score += PowerPelletScore;
+                collectiblesRemaining--;
+                dotsEatenThisLife += PowerPelletScore;
+                frightenedGhostsEaten = 0;
+                frightenedUntil = DateTime.UtcNow.AddSeconds(FrightenedDurationSeconds);
+                foreach (var ghost in ghosts.Where(ghost => ghost.Released && !ghost.ReturningHome)) ghost.Direction = Opposite[ghost.Direction];
+            }
             if (!CanMove(pacman.X, pacman.Y, pacman.Direction, true)) return;
         }
         Move(pacman);
@@ -92,6 +116,11 @@ public sealed class PacmanGame
     private void MoveGhost(Actor ghost)
     {
         if (!ghost.Released) return;
+        if (ghost.ReturningHome)
+        {
+            MoveReturningHome(ghost);
+            return;
+        }
         if (ghost.LeavingHouse)
         {
             MoveOutOfHouse(ghost);
@@ -99,6 +128,23 @@ public sealed class PacmanGame
         }
         if (Aligned(ghost)) { Snap(ghost); DecideGhost(ghost); if (!CanMove(ghost.X, ghost.Y, ghost.Direction, false)) return; }
         Move(ghost);
+    }
+
+    private void MoveReturningHome(Actor ghost)
+    {
+        if (!Aligned(ghost)) { Move(ghost); return; }
+
+        Snap(ghost);
+        if ((ghost.X, ghost.Y) == ghost.Home)
+        {
+            ghost.ReturningHome = false;
+            ghost.LeavingHouse = true;
+            ghost.ExitPathIndex = 0;
+            return;
+        }
+
+        DecideGhost(ghost, ghost.Home, false);
+        if (CanMove(ghost.X, ghost.Y, ghost.Direction, false)) Move(ghost);
     }
 
     private void MoveOutOfHouse(Actor ghost)
@@ -138,11 +184,17 @@ public sealed class PacmanGame
 
     private void DecideGhost(Actor ghost)
     {
+        var frightened = IsFrightened();
+        DecideGhost(ghost, frightened ? (pacman.X, pacman.Y) : GhostTarget(ghost), frightened);
+    }
+
+    private void DecideGhost(Actor ghost, (double X, double Y) target, bool flee)
+    {
         var choices = GhostDecisionDirections.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
         if (choices.Length == 0) choices = [Opposite[ghost.Direction]];
-        var target = NormalizeGhostTarget(GhostTarget(ghost));
+        var normalizedTarget = NormalizeGhostTarget(target);
         var direction = choices[0];
-        var distance = int.MaxValue;
+        var distance = flee ? int.MinValue : int.MaxValue;
 
         foreach (var choice in choices)
         {
@@ -152,8 +204,8 @@ public sealed class PacmanGame
             if (y == TunnelRow && x < 0) x = grid[0].Length - 1;
             else if (y == TunnelRow && x >= grid[0].Length) x = 0;
 
-            var candidateDistance = ShortestGhostPathDistance((x, y), target);
-            if (candidateDistance < distance)
+            var candidateDistance = ShortestGhostPathDistance((x, y), normalizedTarget);
+            if (flee ? candidateDistance > distance : candidateDistance < distance)
             {
                 direction = choice;
                 distance = candidateDistance;
@@ -162,6 +214,15 @@ public sealed class PacmanGame
 
         ghost.Direction = direction;
     }
+
+    private void EatGhost(Actor ghost)
+    {
+        score += 200 * (1 << Math.Min(frightenedGhostsEaten, 3));
+        frightenedGhostsEaten++;
+        ghost.ReturningHome = true;
+    }
+
+    private bool IsFrightened() => frightenedUntil is { } until && DateTime.UtcNow < until;
 
     private (double X, double Y) GhostTarget(Actor ghost) => ghost.Kind switch
     {
@@ -250,6 +311,8 @@ public sealed class PacmanGame
         pacman.Direction = "left";
         pacman.NextDirection = null;
         dotsEatenThisLife = 0;
+        frightenedGhostsEaten = 0;
+        frightenedUntil = null;
 
         for (var i = 0; i < ghosts.Count; i++)
         {
@@ -260,13 +323,14 @@ public sealed class PacmanGame
             ghost.Direction = "up";
             ghost.Released = start.ReleaseScore == 0;
             ghost.LeavingHouse = ghost.Released;
+            ghost.ReturningHome = false;
             ghost.ExitPathIndex = 0;
             ghost.AiCycleStartedAt = DateTime.UtcNow;
         }
     }
     private static bool Aligned(Actor actor) => Math.Abs(actor.X - Math.Round(actor.X)) < .001 && Math.Abs(actor.Y - Math.Round(actor.Y)) < .001;
     private static void Snap(Actor actor) { actor.X = Math.Round(actor.X); actor.Y = Math.Round(actor.Y); }
-    private sealed class Actor(double x, double y, string direction, double speed, string kind, (int X, int Y)[] exitPath)
+    private sealed class Actor(double x, double y, string direction, double speed, string kind, (int X, int Y)[] exitPath, (int X, int Y) home)
     {
         public double X = x, Y = y;
         public string Direction = direction;
@@ -275,11 +339,13 @@ public sealed class PacmanGame
         public string Kind = kind;
         public bool Released;
         public bool LeavingHouse;
+        public bool ReturningHome;
         public DateTime AiCycleStartedAt = DateTime.UtcNow;
         public (int X, int Y)[] ExitPath = exitPath;
         public int ExitPathIndex;
+        public (int X, int Y) Home = home;
     }
 }
 
 public sealed record GameFrame(int[][] Grid, int Score, int Lives, string State, ActorFrame Pacman, ActorFrame[] Ghosts);
-public sealed record ActorFrame(double X, double Y, string Direction);
+public sealed record ActorFrame(double X, double Y, string Direction, bool Frightened, bool ReturningHome);

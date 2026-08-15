@@ -33,6 +33,22 @@ function drawWalls(context, grid) {
   grid.forEach((row, y) => row.forEach((cell, x) => { if (cell !== 1) return; const [cx, cy] = center(x, y); if (grid[y][x + 1] === 1) { context.moveTo(cx, cy); context.lineTo(cx + tile, cy); } if (grid[y + 1]?.[x] === 1) { context.moveTo(cx, cy); context.lineTo(cx, cy + tile); } })); context.stroke();
 }
 function drawDoor(context, grid) { context.strokeStyle = "#ffb8ff"; context.lineWidth = 3; context.beginPath(); grid.forEach((row, y) => row.forEach((cell, x) => { if (cell === 3) { context.moveTo(x * tile, y * tile + 10); context.lineTo((x + 1) * tile, y * tile + 10); } })); context.stroke(); }
-function drawDots(context, grid) { context.fillStyle = "#ffb897"; grid.forEach((row, y) => row.forEach((cell, x) => { if (cell === 2) { const [cx, cy] = center(x, y); context.beginPath(); context.arc(cx, cy, 2.5, 0, Math.PI * 2); context.fill(); } })); }
+function drawDots(context, grid) { context.fillStyle = "#ffb897"; grid.forEach((row, y) => row.forEach((cell, x) => { if (cell === 2 || cell === 4) { const [cx, cy] = center(x, y); context.beginPath(); context.arc(cx, cy, cell === 4 ? 7 : 2.5, 0, Math.PI * 2); context.fill(); } })); }
 function drawPacman(context, pacman, frame) { const [cx, cy] = center(pacman.x, pacman.y); const rotation = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[pacman.direction]; const open = (Math.sin(frame * .3) * .5 + .5) * .28 + .02; context.fillStyle = "#ff0"; context.beginPath(); context.moveTo(cx, cy); context.arc(cx, cy, 9, rotation + open * Math.PI, rotation - open * Math.PI); context.closePath(); context.fill(); }
-function drawGhost(context, ghost, color) { const [cx, cy] = center(ghost.x, ghost.y), radius = 9; context.fillStyle = color; context.beginPath(); context.arc(cx, cy - 1, radius, Math.PI, 0); context.lineTo(cx + radius, cy + radius); context.lineTo(cx + 3, cy + 5); context.lineTo(cx, cy + radius); context.lineTo(cx - 3, cy + 5); context.lineTo(cx - radius, cy + radius); context.closePath(); context.fill(); const [dx, dy] = directions[ghost.direction] ?? [0, 0]; [-3.5, 3.5].forEach(offset => { context.fillStyle = "#fff"; context.beginPath(); context.arc(cx + offset, cy - 1, 3, 0, Math.PI * 2); context.fill(); context.fillStyle = "#0000bb"; context.beginPath(); context.arc(cx + offset + dx * 1.6, cy - 1 + dy * 1.6, 1.5, 0, Math.PI * 2); context.fill(); }); }
+function drawGhost(context, ghost, color) {
+  const [cx, cy] = center(ghost.x, ghost.y), radius = 9;
+  const [dx, dy] = directions[ghost.direction] ?? [0, 0];
+
+  if (!ghost.returningHome) {
+    context.fillStyle = ghost.frightened ? "#2121ff" : color;
+    context.beginPath(); context.arc(cx, cy - 1, radius, Math.PI, 0);
+    context.lineTo(cx + radius, cy + radius); context.lineTo(cx + 3, cy + 5);
+    context.lineTo(cx, cy + radius); context.lineTo(cx - 3, cy + 5);
+    context.lineTo(cx - radius, cy + radius); context.closePath(); context.fill();
+  }
+
+  [-3.5, 3.5].forEach(offset => {
+    context.fillStyle = "#fff"; context.beginPath(); context.arc(cx + offset, cy - 1, 3, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#0000bb"; context.beginPath(); context.arc(cx + offset + dx * 1.6, cy - 1 + dy * 1.6, 1.5, 0, Math.PI * 2); context.fill();
+  });
+}
