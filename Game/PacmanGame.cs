@@ -52,7 +52,7 @@ public sealed class PacmanGame
     public string State { get; private set; } = "start";
 
     public PacmanGame() => Reset("start");
-    public GameFrame Frame => new(grid, score, lives, State, new(pacman.X, pacman.Y, pacman.Direction), ghosts.Select(g => new ActorFrame(g.X, g.Y, g.Direction)).ToArray());
+    public GameFrame Frame => new(grid, score, lives, State, new(pacman.X, pacman.Y, pacman.Direction, false, false), ghosts.Select(g => new ActorFrame(g.X, g.Y, g.Direction, IsFrightened() && !g.ReturningHome, g.ReturningHome)).ToArray());
 
     public void Reset() => Reset("playing");
     public void SetDirection(string direction) { if (State == "playing" && Directions.ContainsKey(direction)) pacman.NextDirection = direction; }
@@ -348,4 +348,4 @@ public sealed class PacmanGame
 }
 
 public sealed record GameFrame(int[][] Grid, int Score, int Lives, string State, ActorFrame Pacman, ActorFrame[] Ghosts);
-public sealed record ActorFrame(double X, double Y, string Direction);
+public sealed record ActorFrame(double X, double Y, string Direction, bool Frightened, bool ReturningHome);
