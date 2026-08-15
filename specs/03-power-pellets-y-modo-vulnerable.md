@@ -1,6 +1,6 @@
 # SPEC 03 — Power Pellets y modo vulnerable
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01, SPEC 02
 > **Date:** 2026-08-14
 > **Objective:** Incorporar cuatro Power Pellets clásicos que activan seis segundos de vulnerabilidad y permiten comer fantasmas antes de que regresen a la casa.
