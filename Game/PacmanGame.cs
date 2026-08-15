@@ -311,6 +311,8 @@ public sealed class PacmanGame
         pacman.Direction = "left";
         pacman.NextDirection = null;
         dotsEatenThisLife = 0;
+        frightenedGhostsEaten = 0;
+        frightenedUntil = null;
 
         for (var i = 0; i < ghosts.Count; i++)
         {
@@ -321,6 +323,7 @@ public sealed class PacmanGame
             ghost.Direction = "up";
             ghost.Released = start.ReleaseScore == 0;
             ghost.LeavingHouse = ghost.Released;
+            ghost.ReturningHome = false;
             ghost.ExitPathIndex = 0;
             ghost.AiCycleStartedAt = DateTime.UtcNow;
         }
