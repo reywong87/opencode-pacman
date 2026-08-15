@@ -101,6 +101,7 @@ public sealed class PacmanGame
                 dotsEatenThisLife += PowerPelletScore;
                 frightenedGhostsEaten = 0;
                 frightenedUntil = DateTime.UtcNow.AddSeconds(FrightenedDurationSeconds);
+                foreach (var ghost in ghosts.Where(ghost => ghost.Released)) ghost.Direction = Opposite[ghost.Direction];
             }
             if (!CanMove(pacman.X, pacman.Y, pacman.Direction, true)) return;
         }
@@ -158,9 +159,10 @@ public sealed class PacmanGame
     {
         var choices = GhostDecisionDirections.Where(d => d != Opposite[ghost.Direction] && CanMove(ghost.X, ghost.Y, d, false)).ToArray();
         if (choices.Length == 0) choices = [Opposite[ghost.Direction]];
-        var target = NormalizeGhostTarget(GhostTarget(ghost));
+        var frightened = IsFrightened();
+        var target = NormalizeGhostTarget(frightened ? (pacman.X, pacman.Y) : GhostTarget(ghost));
         var direction = choices[0];
-        var distance = int.MaxValue;
+        var distance = frightened ? int.MinValue : int.MaxValue;
 
         foreach (var choice in choices)
         {
@@ -171,7 +173,7 @@ public sealed class PacmanGame
             else if (y == TunnelRow && x >= grid[0].Length) x = 0;
 
             var candidateDistance = ShortestGhostPathDistance((x, y), target);
-            if (candidateDistance < distance)
+            if (frightened ? candidateDistance > distance : candidateDistance < distance)
             {
                 direction = choice;
                 distance = candidateDistance;
@@ -180,6 +182,8 @@ public sealed class PacmanGame
 
         ghost.Direction = direction;
     }
+
+    private bool IsFrightened() => frightenedUntil is { } until && DateTime.UtcNow < until;
 
     private (double X, double Y) GhostTarget(Actor ghost) => ghost.Kind switch
     {
